@@ -1,0 +1,1333 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Моделювання внутрішньої балістики</title>
+    <style>
+	.notification-bar {
+    	    text-align: center;
+    	    padding: 10px 20px;
+    	    margin-bottom: 20px;
+    	    background-color: var(--accent);
+    	    color: #fff;
+    	    border-radius: 5px;
+    	    opacity: 0; /* Початковий стан: прихований */
+    	    transform: translateY(-20px); /* Трохи зміщений для ефекту появи */
+    	    transition: all 0.5s ease-in-out; /* Плавний перехід */
+    	    max-width: 800px;
+    	    margin-left: auto;
+    	    margin-right: auto;
+	}
+
+	.notification-bar p {
+    	    margin: 0;
+	}
+
+	.notification-bar.show {
+    	    opacity: 1; /* Робимо видимим */
+    	    transform: translateY(0);
+	}
+        :root{
+            --card-bg: #fff;
+            --muted: #555;
+            --accent: #3498db;
+            --success: #27ae60;
+            --danger: #e74c3c;
+            --shell-bg: #f8f9fa;
+            --detail-value-width: 110px; /* fallback, will be updated by JS */
+            --result-font-size: 13px; /* fallback, synced from CSS/JS */
+            --card-min-width: 260px; /* fallback, may be updated by JS */
+        }
+        body {
+            font-family: Inter, Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #222;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 24px;
+            font-size: 26px;
+        }
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .weapons-section, .formulas-section, .results-section {
+            background: var(--card-bg);
+            padding: 18px;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+        }
+        .weapon-card {
+            background: var(--shell-bg);
+            padding: 12px;
+            margin-bottom: 12px;
+            border-radius: 6px;
+            border-left: 4px solid var(--accent);
+        }
+        .weapon-card.active {
+            border-left-color: var(--success);
+            background: #eaf8f1;
+        }
+        .weapon-header {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .weapon-header input[type="text"] {
+            flex: 1;
+            padding: 6px 8px;
+            font-size: 14px;
+            font-weight: 600;
+            border-radius: 4px;
+            border: 1px solid #e6e6e6;
+        }
+        .param-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+        .param-row label {
+            font-size: 13px;
+            color: var(--muted);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .param-row input {
+            width: 100%;
+            padding: 6px 8px;
+            box-sizing: border-box;
+            border-radius: 4px;
+            border: 1px solid #e6e6e6;
+            background: white;
+        }
+        .btn {
+            padding: 8px 14px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.18s, transform 0.08s;
+        }
+        .btn:active { transform: translateY(1px); }
+        .btn-primary {
+            background-color: var(--accent);
+            color: white;
+        }
+        .btn-primary:hover { background-color: #2b85c8; }
+        .btn-success { background-color: var(--success); color: white; }
+        .btn-danger { background-color: var(--danger); color: white; }
+        .btn-danger:hover { background-color: #c0392b; }
+        .btn:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        .formula-item { margin-bottom: 12px; position: relative; }
+        .formula-item label {
+            display: block;
+            font-weight: 700;
+            margin-bottom: 6px;
+            color: #2c3e50;
+            font-size: 15px;
+        }
+        .formula-wrapper { position: relative; }
+        .formula-item textarea {
+            width: 100%;
+            padding: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            box-sizing: border-box;
+            min-height: 34px;
+            resize: vertical;
+            background: #fbfbfb;
+            position: relative;
+            z-index: 2;
+        }
+        .formula-highlight {
+            position: absolute;
+            left: 8px;
+            right: 8px;
+            top: 8px;
+            bottom: 8px;
+            pointer-events: none;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            color: transparent;
+            white-space: pre-wrap;
+            word-break: break-word;
+            z-index: 1;
+            overflow: hidden;
+        }
+        .tok-num { color: #1e88e5; }
+        .tok-fn { color: #6a1b9a; }
+        .tok-key { color: #d32f2f; }
+        .tok-op { color: #00000088; }
+
+        .formula-error {
+            color: var(--danger);
+            font-size: 12px;
+            margin-top: 6px;
+            display: none;
+        }
+
+        .controls {
+            text-align: center;
+            margin: 18px 0;
+        }
+        .controls button, .controls .small {
+            margin: 0 6px;
+        }
+
+        .results-grid-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .result-status {
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+        }
+        .results-grid {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(auto-fit, minmax(var(--card-min-width), max-content));
+            justify-content: start;
+        }
+        .result-card {
+            background: var(--shell-bg);
+            border-radius: 8px;
+            padding: 12px;
+            border: 1px solid #e6e6e6;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-width: 0;
+            max-width: 300px;
+        }
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 8px;
+        }
+        .result-header .label {
+            font-weight: 700;
+            color: #2c3e50;
+            font-size: 15px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .result-params {
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            color: var(--muted);
+        }
+        .result-details {
+            display: grid;
+            grid-template-columns: 1fr var(--detail-value-width);
+            gap: 6px 12px;
+            align-items: center;
+            font-size: var(--result-font-size);
+        }
+        .detail-label {
+            color: #444;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .detail-value {
+            color: #111;
+            text-align: right;
+            font-family: 'Courier New', monospace;
+            white-space: nowrap;
+        }
+        .card-actions { display:flex; gap:8px; justify-content:flex-end; }
+        .highlight-max { background: linear-gradient(90deg, rgba(255,250,200,0.6), transparent); border-radius:4px; padding:2px 4px; }
+
+        @media (max-width: 767px) {
+            .result-details { grid-template-columns: 1fr var(--detail-value-width); }
+            .result-header { flex-direction: column; align-items: flex-start; gap: 4px; }
+        }
+
+        #plotsContainer {
+            display: grid;
+            gap: 18px;
+            margin-top: 12px;
+        }
+        .plot-canvas {
+            width: 100%;
+            border: 1px solid #e6e6e6;
+            border-radius: 6px;
+            background: white;
+            display: none;
+        }
+
+        @media (min-width: 900px) {
+            #plotsContainer {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+        @media (max-width: 899px) {
+            #plotsContainer {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 1100px) {
+            .main-grid { grid-template-columns: 1fr; }
+        }
+
+        @media (max-width: 768px) {
+            body { padding: 12px; }
+            h1 { font-size: 20px; }
+            .param-row { grid-template-columns: 1fr; }
+            .formula-item label { font-size: 14px; }
+            .controls button { padding: 10px 18px; font-size: 14px; }
+        }
+
+        .loading { color: var(--accent); font-style: italic; }
+        .error {
+            color: var(--danger);
+            background-color: #fdecea;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #f5c6c2;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 18px;
+            font-weight: 700;
+        }
+        .add-weapon-btn { width: 100%; margin-top: 8px; border-radius: 8px; }
+        .small-muted { font-size: 12px; color: #7a7a7a; margin-top: 6px; }
+        .small { font-size: 13px; padding: 8px 10px; border-radius: 6px; }
+    </style>
+</head>
+<body>
+    <div id="startupNotification" class="notification-bar">
+    	<p>
+            <span style="font-size: 1.2em;">💾</span> 
+	    Ваші останні дані автоматично завантажено. Автозбереження працює у фоновому режимі.
+    	</p>
+    </div>
+
+    <div class="container">
+        <h1>Моделювання внутрішньої балістики</h1>
+
+        <div class="main-grid">
+            <div class="weapons-section">
+                <h2>Зразки зброї</h2>
+                <div id="weaponsList" aria-live="polite"></div>
+                <button class="btn btn-success add-weapon-btn" id="addWeaponBtn">+ Додати зразок</button>
+                <div class="small-muted">Примітка: d, m_k, m_p, l вводяться в мм/г/мм/мм. В формулах використовуються одиниці СІ (m, kg).</div>
+            </div>
+
+            <div class="formulas-section">
+                <h2>Формули для розрахунку</h2>
+
+                <div class="formula-item">
+                    <label>S (площа перерізу):</label>
+                    <div class="formula-wrapper">
+                        <pre class="formula-highlight" id="hl_S"></pre>
+                        <textarea id="formula_S" rows="1">Math.PI * Math.pow(d / 2, 2)</textarea>
+                    </div>
+                    <div class="formula-error" id="err_S"></div>
+                </div>
+
+                <div class="formula-item">
+                    <label>V (об'єм):</label>
+                    <div class="formula-wrapper">
+                        <pre class="formula-highlight" id="hl_V"></pre>
+                        <textarea id="formula_V" rows="1">S * l</textarea>
+                    </div>
+                    <div class="formula-error" id="err_V"></div>
+                </div>
+
+                <div class="formula-item">
+                    <label>p<sub>d</sub> (тиск):</label>
+                    <div class="formula-wrapper">
+                        <pre class="formula-highlight" id="hl_p_d"></pre>
+                        <textarea id="formula_p_d" rows="1">(m_p * R * T_g) / (M_pg * V)</textarea>
+                    </div>
+                    <div class="formula-error" id="err_p_d"></div>
+                </div>
+
+                <div class="formula-item">
+                    <label>p<sub>sr</sub> (середній тиск):</label>
+                    <div class="formula-wrapper">
+                        <pre class="formula-highlight" id="hl_p_sr"></pre>
+                        <textarea id="formula_p_sr" rows="1">1.5 * p_d</textarea>
+                    </div>
+                    <div class="formula-error" id="err_p_sr"></div>
+                </div>
+
+                <div class="formula-item">
+                    <label>a (прискорення):</label>
+                    <div class="formula-wrapper">
+                        <pre class="formula-highlight" id="hl_a"></pre>
+                        <textarea id="formula_a" rows="1">(p_sr * S) / m_k</textarea>
+                    </div>
+                    <div class="formula-error" id="err_a"></div>
+                </div>
+
+                <div class="formula-item">
+                    <label>v<sub>d</sub> (швидкість):</label>
+                    <div class="formula-wrapper">
+                        <pre class="formula-highlight" id="hl_v_d"></pre>
+                        <textarea id="formula_v_d" rows="1">Math.sqrt(2 * a * l)</textarea>
+                    </div>
+                    <div class="formula-error" id="err_v_d"></div>
+                </div>
+
+                <div class="formula-item">
+                    <label>t (час):</label>
+                    <div class="formula-wrapper">
+                        <pre class="formula-highlight" id="hl_t"></pre>
+                        <textarea id="formula_t" rows="1">v_d / a</textarea>
+                    </div>
+                    <div class="formula-error" id="err_t"></div>
+                </div>
+
+                <div class="formula-item">
+                    <label>E<sub>k</sub> (кінетична енергія):</label>
+                    <div class="formula-wrapper">
+                        <pre class="formula-highlight" id="hl_E_k"></pre>
+                        <textarea id="formula_E_k" rows="1">0.5 * m_k * Math.pow(v_d, 2)</textarea>
+                    </div>
+                    <div class="formula-error" id="err_E_k"></div>
+                </div>
+
+                <div class="formula-item">
+                    <label>Q<sub>p</sub> (енергія пороху):</label>
+                    <div class="formula-wrapper">
+                        <pre class="formula-highlight" id="hl_Q_p"></pre>
+                        <textarea id="formula_Q_p" rows="1">q_p * m_p</textarea>
+                    </div>
+                    <div class="formula-error" id="err_Q_p"></div>
+                </div>
+
+                <div class="formula-item">
+                    <label>η (ефективність):</label>
+                    <div class="formula-wrapper">
+                        <pre class="formula-highlight" id="hl_eta"></pre>
+                        <textarea id="formula_eta" rows="1">(E_k / Q_p) * 100</textarea>
+                    </div>
+                    <div class="formula-error" id="err_eta"></div>
+                </div>
+
+                <div class="formula-item">
+                    <label>m<sub>k new</sub> (нова маса кулі):</label>
+                    <div class="formula-wrapper">
+                        <pre class="formula-highlight" id="hl_m_k_new"></pre>
+                        <textarea id="formula_m_k_new" rows="1">0.003</textarea>
+                    </div>
+                    <div class="formula-error" id="err_m_k_new"></div>
+                </div>
+
+                <div class="formula-item">
+                    <label>m<sub>p new</sub> (нова маса пороху):</label>
+                    <div class="formula-wrapper">
+                        <pre class="formula-highlight" id="hl_m_p_new"></pre>
+                        <textarea id="formula_m_p_new" rows="1">m_p * (m_k_new / m_k)</textarea>
+                    </div>
+                    <div class="formula-error" id="err_m_p_new"></div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="btn btn-primary" id="runCode" style="font-size: 18px;">🚀 Запустити моделювання</button>
+	    <button class="btn small" id="loadConfigBtn">📂 Імпорт з файлу (JSON)</button>
+	    <button class="btn small" id="exportConfigBtn">📁 Експорт у файл (JSON)</button>
+            <button class="btn small" id="copyAllBtn">📋 Копіювати всі</button>
+            <input type="file" id="importFile" accept="application/json" style="display:none" />
+        </div>
+
+        <div class="results-section">
+            <h2>Результати</h2>
+            <div class="results-grid-wrapper">
+                <div id="resultMessage" class="result-status">Натисніть "Запустити моделювання" для отримання результатів</div>
+                <div id="resultGrid" class="results-grid" role="list" aria-live="polite"></div>
+            </div>
+            <div id="plotsContainer">
+                <canvas id="plotCanvas1" class="plot-canvas" aria-label="Графік швидкості"></canvas>
+                <canvas id="plotCanvas2" class="plot-canvas" aria-label="Графік енергії"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /*************************************************************************
+         * Виправлення:
+         * - Усунув дублікат декларації legendFontSize (викликала SyntaxError).
+         * - Переконався, що addWeapon динамічно додає картку і прив'язує слухачі.
+         * - Видалено кнопку "Експорт CSV" з UI (внутрішня функція resultsToCSV лишилась).
+         ************************************************************************/
+
+        function escHtml(s) {
+            return String(s)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        let weaponIdCounter = 0;
+        let weapons = [];
+        let lastResults = null;
+        let lastWeaponsData = null;
+
+        const defaultPresets = [
+            { label: "M16 A1", d: 5.56, m_k: 4, m_p: 1.75, l: 508, M_pg: 25, T_g: 2500 },
+            { label: "AK-74", d: 5.45, m_k: 3.4, m_p: 1.5, l: 415, M_pg: 25, T_g: 2200 },
+            { label: "AK-47", d: 7.62, m_k: 7.9, m_p: 2.5, l: 415, M_pg: 25, T_g: 2500 }
+        ];
+
+        const formulaIds = ['S','V','p_d','p_sr','a','v_d','t','E_k','Q_p','eta','m_k_new','m_p_new'];
+
+        function createWeaponCard(preset, id) {
+            const esc = s => String(s).replace(/"/g, '&quot;');
+            return `
+                <div class="weapon-card active" id="weapon-${id}">
+                    <div class="weapon-header">
+                        <input type="text" class="weapon-label" value="${esc(preset.label)}" placeholder="Назва зразка">
+                        <button class="btn btn-danger" data-remove-id="${id}" title="Видалити зразок">×</button>
+                    </div>
+                    <div class="param-row">
+                        <label>Калібр (мм): <input type="number" class="weapon-d" value="${preset.d}" step="0.01" min="0"></label>
+                        <label>Маса кулі (г): <input type="number" class="weapon-m_k" value="${preset.m_k}" step="0.1" min="0"></label>
+                    </div>
+                    <div class="param-row">
+                        <label>Маса пороху (г): <input type="number" class="weapon-m_p" value="${preset.m_p}" step="0.1" min="0"></label>
+                        <label>Довжина ствола (мм): <input type="number" class="weapon-l" value="${preset.l}" step="1" min="0"></label>
+                    </div>
+                    <div class="param-row">
+                        <label>M газів (г/моль): <input type="number" class="weapon-M_pg" value="${preset.M_pg}" step="0.1" min="0"></label>
+                        <label>T газів (K): <input type="number" class="weapon-T_g" value="${preset.T_g}" step="1" min="0"></label>
+                    </div>
+                </div>
+            `;
+        }
+
+        function attachInputsListeners(cardEl) {
+            if (!cardEl) return;
+            const inputs = cardEl.querySelectorAll('input');
+            inputs.forEach(inp => {
+                if (!inp._autosaveAttached) {
+                    inp.addEventListener('input', scheduleAutoSave);
+                    inp._autosaveAttached = true;
+                }
+            });
+            const removeBtn = cardEl.querySelector('[data-remove-id]');
+            if (removeBtn && !removeBtn._removeAttached) {
+                removeBtn.addEventListener('click', () => {
+                    const id = parseInt(removeBtn.getAttribute('data-remove-id'), 10);
+                    removeWeapon(id);
+                });
+                removeBtn._removeAttached = true;
+            }
+        }
+
+        function addWeapon(preset = null) {
+            const id = weaponIdCounter++;
+            const weaponPreset = preset || { label: `Зразок ${id + 1}`, d: 0, m_k: 0, m_p: 0, l: 0, M_pg: 25, T_g: 0 };
+            const weaponsList = document.getElementById('weaponsList');
+            if (!weaponsList) {
+                console.error('weaponsList element not found');
+                return;
+            }
+            weaponsList.insertAdjacentHTML('beforeend', createWeaponCard(weaponPreset, id));
+            weapons.push(id);
+            const newCard = document.getElementById(`weapon-${id}`);
+            attachInputsListeners(newCard);
+            const input = newCard.querySelector('.weapon-label');
+            if (input) input.focus();
+            scheduleAutoSave();
+            console.debug('Added weapon id', id);
+        }
+
+        function removeWeapon(id) {
+            const card = document.getElementById(`weapon-${id}`);
+            if (card) {
+                card.remove();
+                weapons = weapons.filter(w => w !== id);
+                scheduleAutoSave();
+                console.debug('Removed weapon id', id);
+            }
+        }
+
+        function safeParseFloat(value, defaultVal = 0) {
+            const v = parseFloat(value);
+            return Number.isFinite(v) ? v : defaultVal;
+        }
+
+        function getWeaponsData() {
+            const weaponsData = [];
+            for (const id of weapons) {
+                const card = document.getElementById(`weapon-${id}`);
+                if (!card) continue;
+                const raw_d = card.querySelector('.weapon-d').value;
+                const raw_m_k = card.querySelector('.weapon-m_k').value;
+                const raw_m_p = card.querySelector('.weapon-m_p').value;
+                const raw_l = card.querySelector('.weapon-l').value;
+                const raw_M_pg = card.querySelector('.weapon-M_pg').value;
+                const raw_T_g = card.querySelector('.weapon-T_g').value;
+                const data = {
+                    label: card.querySelector('.weapon-label').value || `Зразок ${id + 1}`,
+                    d: safeParseFloat(raw_d, 0) / 1000,
+                    m_k: safeParseFloat(raw_m_k, 0) / 1000,
+                    m_p: safeParseFloat(raw_m_p, 0) / 1000,
+                    l: safeParseFloat(raw_l, 0) / 1000,
+                    M_pg: safeParseFloat(raw_M_pg, 25) / 1000,
+                    T_g: safeParseFloat(raw_T_g, 0)
+                };
+                weaponsData.push(data);
+            }
+            return weaponsData;
+        }
+
+        function syntaxHighlight(text) {
+            const esc = t => escHtml(t);
+            let s = esc(text)
+                .replace(/(\bMath\b)/g, '<span class="tok-fn">$1</span>')
+                .replace(/(\b(?:return|if|else|for|while|var|let|const)\b)/g, '<span class="tok-key">$1</span>')
+                .replace(/([0-9]+(?:\.[0-9]+)?(?:e[+\-]?\d+)?)/gi, '<span class="tok-num">$1</span>')
+                .replace(/([+\-*/=<>!%]+)/g, '<span class="tok-op">$1</span>');
+            return s;
+        }
+
+        function validateFormula(id) {
+            const ta = document.getElementById('formula_' + id);
+            const err = document.getElementById('err_' + id);
+            const hl = document.getElementById('hl_' + id);
+            const text = ta.value || '';
+            if (hl) hl.innerHTML = syntaxHighlight(text);
+            try {
+                const names = ['d','m_k','m_p','l','M_pg','T_g','R','q_p','S','V','p_d','p_sr','a','v_d','t','E_k','Q_p','eta','m_k_new','m_p_new','Math'];
+                new Function(...names, `return (${text});`);
+                if (err) { err.style.display = 'none'; err.textContent = ''; }
+                if (ta) ta.style.borderColor = '';
+                return true;
+            } catch (e) {
+                if (err) { err.textContent = 'Синтаксична помилка: ' + e.message; err.style.display = 'block'; }
+                if (ta) ta.style.borderColor = 'var(--danger)';
+                return false;
+            }
+        }
+
+        function setupFormulaValidation() {
+            formulaIds.forEach(id => {
+                const ta = document.getElementById('formula_' + id);
+                if (!ta) return;
+                const validate = () => {
+                    validateFormula(id);
+                    scheduleAutoSave();
+                };
+                ta.addEventListener('input', validate);
+                validateFormula(id);
+            });
+        }
+
+        function evaluateFormula(formula, vars) {
+            const varNames = Object.keys(vars);
+            const varValues = Object.values(vars);
+            try {
+                const func = new Function(...varNames, `return (${formula});`);
+                return func(...varValues);
+            } catch (error) {
+                throw new Error(`Помилка в формулі "${formula}": ${error.message}`);
+            }
+        }
+
+        function calculateWeapon(weaponData, formulas) {
+            const R = 8.31446261815324;
+            const q_p = 3.36e6;
+            const { d, m_k, m_p, l, M_pg, T_g, label } = weaponData;
+            const vars = { d, m_k, m_p, l, M_pg, T_g, R, q_p, Math };
+            try {
+                vars.S = evaluateFormula(formulas.S, vars);
+                vars.V = evaluateFormula(formulas.V, vars);
+                vars.p_d = evaluateFormula(formulas.p_d, vars);
+                vars.p_sr = evaluateFormula(formulas.p_sr, vars);
+                vars.a = evaluateFormula(formulas.a, vars);
+                vars.v_d = evaluateFormula(formulas.v_d, vars);
+                vars.t = evaluateFormula(formulas.t, vars);
+                vars.E_k = evaluateFormula(formulas.E_k, vars);
+                vars.Q_p = evaluateFormula(formulas.Q_p, vars);
+                vars.eta = evaluateFormula(formulas.eta, vars);
+                vars.m_k_new = evaluateFormula(formulas.m_k_new, vars);
+                vars.m_p_new = evaluateFormula(formulas.m_p_new, vars);
+
+                return {
+                    label,
+                    d_mm: d * 1000,
+                    m_k_g: m_k * 1000,
+                    l_mm: l * 1000,
+                    v_d: vars.v_d,
+                    a: vars.a,
+                    l: l,
+                    p_sr: vars.p_sr,
+                    t: vars.t,
+                    E_k: vars.E_k,
+                    eta: vars.eta,
+                    m_k_new: vars.m_k_new,
+                    m_p_new: vars.m_p_new
+                };
+            } catch (error) {
+                throw new Error(`${label}: ${error.message}`);
+            }
+        }
+
+        function renderResultsGrid(results, weaponsData) {
+            const grid = document.getElementById('resultGrid');
+            const msg = document.getElementById('resultMessage');
+            if (!grid || !msg) return;
+            grid.innerHTML = '';
+
+            if (!results || results.length === 0) {
+                msg.textContent = 'Немає результатів для відображення.';
+                document.getElementById('plotCanvas1').style.display = 'none';
+                document.getElementById('plotCanvas2').style.display = 'none';
+                return;
+            }
+
+            const tmp = document.createElement('div');
+            tmp.style.position = 'absolute';
+            tmp.style.visibility = 'hidden';
+            tmp.style.whiteSpace = 'nowrap';
+            tmp.style.fontFamily = "'Courier New', monospace";
+            tmp.style.fontSize = getComputedStyle(document.documentElement).getPropertyValue('--result-font-size') || '13px';
+            document.body.appendChild(tmp);
+
+            let maxValuePx = 0;
+            let maxCardPx = 0;
+            results.forEach((r) => {
+                const values = [
+                    Number.isFinite(r.v_d) ? `${r.v_d.toFixed(0)} м/с` : '–',
+                    Number.isFinite(r.E_k) ? `${r.E_k.toFixed(0)} Дж` : '–',
+                    Number.isFinite(r.p_sr) ? `${(r.p_sr / 1e5).toFixed(2)} бар` : '–',
+                    Number.isFinite(r.eta) ? `${r.eta.toFixed(1)}%` : '–',
+                    Number.isFinite(r.a) ? `${r.a.toFixed(0)} м/с²` : '–',
+                    Number.isFinite(r.t) ? `${(r.t * 1000).toFixed(3)} мс` : '–',
+                    Number.isFinite(r.m_p_new) ? `${(r.m_p_new * 1000).toFixed(2)} г` : '–'
+                ];
+                values.forEach(v => {
+                    tmp.textContent = v;
+                    maxValuePx = Math.max(maxValuePx, tmp.getBoundingClientRect().width);
+                });
+                tmp.textContent = r.label;
+                const labelPx = tmp.getBoundingClientRect().width;
+                tmp.textContent = `(d=${r.d_mm.toFixed(2)} мм, m=${r.m_k_g.toFixed(1)} г, l=${r.l_mm.toFixed(0)} мм)`;
+                const paramsPx = tmp.getBoundingClientRect().width;
+                const estimatedCard = Math.max(labelPx + 24 + maxValuePx + 24, paramsPx + 24);
+                maxCardPx = Math.max(maxCardPx, estimatedCard);
+            });
+            document.body.removeChild(tmp);
+
+            maxValuePx = Math.ceil(maxValuePx + 16);
+            maxCardPx = Math.ceil(maxCardPx + 32);
+            document.documentElement.style.setProperty('--detail-value-width', maxValuePx + 'px');
+            const minCard = Math.max(240, Math.min(maxCardPx, 520));
+            document.documentElement.style.setProperty('--card-min-width', minCard + 'px');
+
+            msg.textContent = `ПОРІВНЯННЯ (${results.length} зразків)`;
+
+            let maxV = -Infinity, maxE = -Infinity;
+            results.forEach(r => {
+                if (Number.isFinite(r.v_d)) maxV = Math.max(maxV, r.v_d);
+                if (Number.isFinite(r.E_k)) maxE = Math.max(maxE, r.E_k);
+            });
+
+            results.forEach((r, idx) => {
+                const card = document.createElement('article');
+                card.className = 'result-card';
+                card.setAttribute('role', 'listitem');
+                card.setAttribute('aria-labelledby', `res-label-${idx}`);
+
+                const header = document.createElement('div');
+                header.className = 'result-header';
+
+                const label = document.createElement('div');
+                label.className = 'label';
+                label.id = `res-label-${idx}`;
+                label.textContent = r.label;
+
+                const params = document.createElement('div');
+                params.className = 'result-params';
+                params.textContent = `(d=${r.d_mm.toFixed(2)} мм, m=${r.m_k_g.toFixed(1)} г, l=${r.l_mm.toFixed(0)} мм)`;
+
+                header.appendChild(label);
+                header.appendChild(params);
+                card.appendChild(header);
+
+                const actions = document.createElement('div');
+                actions.className = 'card-actions';
+                const copyBtn = document.createElement('button');
+                copyBtn.className = 'btn small';
+                copyBtn.textContent = '📋 Копіювати';
+                copyBtn.title = 'Копіювати дані картки в буфер';
+                copyBtn.addEventListener('click', () => copyCardToClipboard(r));
+                actions.appendChild(copyBtn);
+                card.appendChild(actions);
+
+                const details = document.createElement('div');
+                details.className = 'result-details';
+
+                const detailRows = [
+                    ['Дульна швидкість', Number.isFinite(r.v_d) ? `${r.v_d.toFixed(0)} м/с` : '–', Number.isFinite(r.v_d) && r.v_d === maxV],
+                    ['Кінетична енергія', Number.isFinite(r.E_k) ? `${r.E_k.toFixed(0)} Дж` : '–', Number.isFinite(r.E_k) && r.E_k === maxE],
+                    ['Середній тиск', Number.isFinite(r.p_sr) ? `${(r.p_sr / 1e5).toFixed(2)} бар` : '–', false],
+                    ['ККД (η)', Number.isFinite(r.eta) ? `${r.eta.toFixed(1)}%` : '–', false],
+                    ['Прискорення', Number.isFinite(r.a) ? `${r.a.toFixed(0)} м/с²` : '–', false],
+                    ['Час в стволі', Number.isFinite(r.t) ? `${(r.t * 1000).toFixed(3)} мс` : '–', false],
+                    [`Порох для ${(r.m_k_new*1000).toFixed(1)}г`, Number.isFinite(r.m_p_new) ? `${(r.m_p_new * 1000).toFixed(2)} г` : '–', false]
+                ];
+
+                detailRows.forEach(([lbl, val, isMax]) => {
+                    const lblEl = document.createElement('div');
+                    lblEl.className = 'detail-label';
+                    lblEl.textContent = lbl;
+
+                    const valEl = document.createElement('div');
+                    valEl.className = 'detail-value';
+                    valEl.textContent = val;
+                    if (isMax) valEl.classList.add('highlight-max');
+
+                    details.appendChild(lblEl);
+                    details.appendChild(valEl);
+                });
+
+                card.appendChild(details);
+                grid.appendChild(card);
+            });
+
+            const sampleValueEl = document.querySelector('.detail-value');
+            let fontSize = window.getComputedStyle(sampleValueEl || document.body).fontSize || '13px';
+            document.documentElement.style.setProperty('--result-font-size', fontSize);
+            document.getElementById('plotCanvas1').style.display = 'block';
+            document.getElementById('plotCanvas2').style.display = 'block';
+            drawPlots(results, weaponsData);
+        }
+
+        async function copyCardToClipboard(result) {
+            const parts = [
+                result.label,
+                `(d=${result.d_mm.toFixed(2)} мм, m=${result.m_k_g.toFixed(1)} г, l=${result.l_mm.toFixed(0)} мм)`,
+                `Дульна швидкість: ${Number.isFinite(result.v_d) ? result.v_d.toFixed(0) + ' м/с' : '–'}`,
+                `Кінетична енергія: ${Number.isFinite(result.E_k) ? result.E_k.toFixed(0) + ' Дж' : '–'}`,
+                `Середній тиск: ${Number.isFinite(result.p_sr) ? (result.p_sr / 1e5).toFixed(2) + ' бар' : '–'}`,
+                `ККД (η): ${Number.isFinite(result.eta) ? result.eta.toFixed(1) + '%' : '–'}`,
+                `Час в стволі: ${Number.isFinite(result.t) ? (result.t * 1000).toFixed(3) + ' мс' : '–'}`
+            ];
+            const text = parts.join('\n');
+            try {
+                await navigator.clipboard.writeText(text);
+                alert('Дані картки скопійовано в буфер обміну.');
+            } catch (e) {
+                console.error('copy failed', e);
+                alert('Не вдалося скопіювати (можливо, браузер обмежує доступ).');
+            }
+        }
+
+        function resultsToCSV(results) {
+            if (!results || !results.length) return '';
+            const headers = ['label','d_mm','m_k_g','l_mm','v_d','E_k','p_sr','eta','a','t_ms','m_k_new_g','m_p_new_g'];
+            const rows = results.map(r => {
+                return [
+                    `"${r.label.replace(/"/g,'""')}"`,
+                    r.d_mm.toFixed(3),
+                    r.m_k_g.toFixed(3),
+                    r.l_mm.toFixed(3),
+                    Number.isFinite(r.v_d) ? r.v_d.toFixed(3) : '',
+                    Number.isFinite(r.E_k) ? r.E_k.toFixed(3) : '',
+                    Number.isFinite(r.p_sr) ? r.p_sr.toExponential() : '',
+                    Number.isFinite(r.eta) ? r.eta.toFixed(3) : '',
+                    Number.isFinite(r.a) ? r.a.toFixed(3) : '',
+                    Number.isFinite(r.t) ? (r.t*1000).toFixed(6) : '',
+                    Number.isFinite(r.m_k_new) ? (r.m_k_new*1000).toFixed(3) : '',
+                    Number.isFinite(r.m_p_new) ? (r.m_p_new*1000).toFixed(3) : ''
+                ].join(',');
+            });
+            return headers.join(',') + '\n' + rows.join('\n');
+        }
+
+        function drawPlot(canvasId, results, weaponsData, plotType) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+
+            const container = canvas.parentElement;
+            const containerWidth = Math.max(container.clientWidth, 300);
+            const screenWidth = window.innerWidth;
+
+            let displayWidth, displayHeight, plotWidth, plotHeight, leftPadding, topPadding;
+            const plotsPerRow = screenWidth >= 900 ? 2 : 1;
+
+            if (screenWidth < 768) {
+                displayWidth = containerWidth;
+                displayHeight = 420;
+                plotWidth = displayWidth - 100;
+                plotHeight = 300;
+                leftPadding = 60;
+                topPadding = 48;
+            } else {
+                displayWidth = containerWidth / plotsPerRow - 10;
+                displayHeight = 460;
+                plotWidth = displayWidth - 120;
+                plotHeight = 360;
+                leftPadding = 70;
+                topPadding = 54;
+            }
+
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = Math.round(displayWidth * dpr);
+            canvas.height = Math.round(displayHeight * dpr);
+            canvas.style.width = Math.round(displayWidth) + 'px';
+            canvas.style.height = Math.round(displayHeight) + 'px';
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.clearRect(0, 0, displayWidth, displayHeight);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, displayWidth, displayHeight);
+
+            const resultFontSize = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--result-font-size')) || 13;
+            const axisFontSize = Math.max(10, Math.round(resultFontSize));
+            const titleFontSize = Math.max(12, Math.round(resultFontSize + 1));
+            const legendFontSize = Math.max(10, Math.round(resultFontSize));
+
+            const colors = ['#3498db', '#e74c3c', '#27ae60', '#f39c12', '#9b59b6', '#1abc9c'];
+
+            function drawAxes(x, y, width, height, xLabel, yLabel, title, maxX, maxY, numTicks = 6) {
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(x, y, width, height);
+
+                ctx.strokeStyle = '#e6e6e6';
+                ctx.lineWidth = 0.6;
+                ctx.setLineDash([3, 3]);
+                for (let i = 0; i <= numTicks; i++) {
+                    const yPos = y + (i * height / numTicks);
+                    ctx.beginPath();
+                    ctx.moveTo(x, yPos);
+                    ctx.lineTo(x + width, yPos);
+                    ctx.stroke();
+                }
+                for (let i = 0; i <= numTicks; i++) {
+                    const xPos = x + (i * width / numTicks);
+                    ctx.beginPath();
+                    ctx.moveTo(xPos, y);
+                    ctx.lineTo(xPos, y + height);
+                    ctx.stroke();
+                }
+                ctx.setLineDash([]);
+
+                ctx.strokeStyle = '#333333';
+                ctx.lineWidth = 1.2;
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+                ctx.lineTo(x, y + height);
+                ctx.lineTo(x + width, y + height);
+                ctx.stroke();
+
+                ctx.fillStyle = '#2c3e50';
+                ctx.font = `bold ${titleFontSize}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.fillText(title, x + width / 2, y - 18);
+
+                ctx.font = `bold ${axisFontSize}px Arial`;
+                ctx.fillStyle = '#555';
+                ctx.fillText(xLabel, x + width / 2, y + height + 30);
+
+                ctx.save();
+                ctx.translate(x - 46, y + height / 2);
+                ctx.rotate(-Math.PI / 2);
+                ctx.textAlign = 'center';
+                ctx.fillText(yLabel, 0, 0);
+                ctx.restore();
+
+                ctx.font = `${Math.max(9, axisFontSize-1)}px Arial`;
+                ctx.textAlign = 'right';
+                ctx.fillStyle = '#333333';
+                for (let i = 0; i <= numTicks; i++) {
+                    const value = maxY * (1 - i / numTicks);
+                    const yPos = y + (i * height / numTicks);
+                    ctx.fillText(isFinite(value) ? value.toFixed(0) : '0', x - 12, yPos + 4);
+                }
+
+                ctx.textAlign = 'center';
+                for (let i = 0; i <= numTicks; i++) {
+                    const value = maxX * (i / numTicks);
+                    const xPos = x + (i * width / numTicks);
+                    ctx.fillText(isFinite(value) ? value.toFixed(0) : '0', xPos, y + height + 14);
+                }
+            }
+
+            const plotX = leftPadding;
+            const plotY = topPadding;
+
+            if (plotType === 'velocity') {
+                let maxL = 0, maxV = 0;
+                results.forEach(r => {
+                    maxL = Math.max(maxL, r.l * 1000 || 0);
+                    maxV = Math.max(maxV, r.v_d || 0);
+                });
+                maxV = Math.max(1, Math.ceil(maxV / 100) * 100);
+                maxL = Math.max(100, Math.ceil(maxL / 100) * 100);
+
+                drawAxes(plotX, plotY, plotWidth, plotHeight,
+                    'Довжина ствола (мм)', 'Швидкість (м/с)',
+                    'Профіль швидкості кулі вздовж ствола', maxL, maxV);
+
+                results.forEach((r, idx) => {
+                    ctx.strokeStyle = colors[idx % colors.length];
+                    ctx.lineWidth = 2.2;
+                    ctx.beginPath();
+                    const points = 120;
+                    for (let i = 0; i <= points; i++) {
+                        const x_val = (r.l * i) / points;
+                        const v = (r.a && r.a > 0) ? Math.sqrt(2 * r.a * x_val) : 0;
+                        const px = plotX + ((x_val * 1000) / maxL) * plotWidth;
+                        const py = plotY + plotHeight - (v / maxV) * plotHeight;
+                        if (i === 0) ctx.moveTo(px, py);
+                        else ctx.lineTo(px, py);
+                    }
+                    ctx.stroke();
+                });
+            } else {
+                let maxL = 0, maxE = 0;
+                results.forEach((r, idx) => {
+                    maxL = Math.max(maxL, r.l * 1000 || 0);
+                    const m_k_orig = weaponsData[idx] ? weaponsData[idx].m_k : 0;
+                    const v = r.v_d || 0;
+                    const E = 0.5 * m_k_orig * v * v;
+                    maxE = Math.max(maxE, E || 0);
+                });
+                maxE = Math.max(10, Math.ceil(maxE / 100) * 100);
+                maxL = Math.max(100, Math.ceil(maxL / 100) * 100);
+
+                drawAxes(plotX, plotY, plotWidth, plotHeight,
+                    'Довжина ствола (мм)', 'Кінетична енергія (Дж)',
+                    'Зростання кінетичної енергії кулі вздовж ствола', maxL, maxE);
+
+                results.forEach((r, idx) => {
+                    ctx.strokeStyle = colors[idx % colors.length];
+                    ctx.lineWidth = 2.2;
+                    ctx.beginPath();
+                    const points = 120;
+                    const m_k_original = weaponsData[idx] ? weaponsData[idx].m_k : 0;
+                    for (let i = 0; i <= points; i++) {
+                        const x_val = (r.l * i) / points;
+                        const v = (r.a && r.a > 0) ? Math.sqrt(2 * r.a * x_val) : 0;
+                        const E = 0.5 * m_k_original * v * v;
+                        const px = plotX + ((x_val * 1000) / maxL) * plotWidth;
+                        const py = plotY + plotHeight - (E / maxE) * plotHeight;
+                        if (i === 0) ctx.moveTo(px, py);
+                        else ctx.lineTo(px, py);
+                    }
+                    ctx.stroke();
+                });
+            }
+
+            // Legend
+            const legendItemHeight = 20;
+            const legendWidth = screenWidth <= 768 ? 120 : 160;
+            const legendX = plotX + plotWidth - legendWidth;
+            const legendY = plotY + Math.max(10, plotHeight - 20 - results.length * legendItemHeight);
+
+            ctx.fillStyle = 'rgba(255,255,255,0.92)';
+            ctx.fillRect(legendX - 6, legendY - 6, legendWidth + 12, results.length * legendItemHeight + 12);
+            ctx.strokeStyle = '#ddd';
+            ctx.strokeRect(legendX - 6, legendY - 6, legendWidth + 12, results.length * legendItemHeight + 12);
+
+            results.forEach((r, idx) => {
+                const yPos = legendY + idx * legendItemHeight + 6;
+                ctx.strokeStyle = colors[idx % colors.length];
+                ctx.lineWidth = 2.4;
+                ctx.beginPath();
+                ctx.moveTo(legendX, yPos + 6);
+                ctx.lineTo(legendX + 30, yPos + 6);
+                ctx.stroke();
+                ctx.fillStyle = '#000';
+                ctx.font = `${legendFontSize}px Arial`;
+                ctx.textAlign = 'left';
+                ctx.fillText(r.label, legendX + 36, yPos + 10);
+            });
+        }
+
+        function drawPlots(results, weaponsData) {
+            drawPlot('plotCanvas1', results, weaponsData, 'velocity');
+            drawPlot('plotCanvas2', results, weaponsData, 'energy');
+        }
+
+        const STORAGE_KEY = 'ballistics_config_v1';
+
+        function readFormulasFromDOM() {
+            const f = {};
+            formulaIds.forEach(id => {
+                const ta = document.getElementById('formula_' + id);
+                f[id] = ta ? ta.value : '';
+            });
+            return f;
+        }
+
+        function writeFormulasToDOM(formulas) {
+            formulaIds.forEach(id => {
+                const ta = document.getElementById('formula_' + id);
+                if (ta && formulas[id] !== undefined) ta.value = String(formulas[id]);
+                validateFormula(id);
+            });
+        }
+
+        function saveConfig(name = 'autosave') {
+            const config = {
+                name,
+                timestamp: new Date().toISOString(),
+                presets: getCurrentPresetsFromDOM(),
+                formulas: readFormulasFromDOM()
+            };
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+            } catch (e) {
+                console.warn('Unable to save to localStorage', e);
+            }
+            return config;
+        }
+
+        function loadConfig() {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) return null;
+            try {
+                const cfg = JSON.parse(raw);
+                applyConfig(cfg);
+                return cfg;
+            } catch (e) {
+                console.error('loadConfig error', e);
+                return null;
+            }
+        }
+
+        function applyConfig(cfg) {
+            if (!cfg) return;
+            document.getElementById('weaponsList').innerHTML = '';
+            weapons = [];
+            weaponIdCounter = 0;
+            const presets = cfg.presets || [];
+            presets.forEach(p => addWeapon(p));
+            if (cfg.formulas) writeFormulasToDOM(cfg.formulas);
+        }
+
+        function getCurrentPresetsFromDOM() {
+            const list = [];
+            for (const id of weapons) {
+                const card = document.getElementById(`weapon-${id}`);
+                if (!card) continue;
+                list.push({
+                    label: card.querySelector('.weapon-label').value || '',
+                    d: safeParseFloat(card.querySelector('.weapon-d').value, 0),
+                    m_k: safeParseFloat(card.querySelector('.weapon-m_k').value, 0),
+                    m_p: safeParseFloat(card.querySelector('.weapon-m_p').value, 0),
+                    l: safeParseFloat(card.querySelector('.weapon-l').value, 0),
+                    M_pg: safeParseFloat(card.querySelector('.weapon-M_pg').value, 25),
+                    T_g: safeParseFloat(card.querySelector('.weapon-T_g').value, 0)
+                });
+            }
+            return list;
+        }
+
+        function exportConfigAsFile() {
+            const cfg = {
+                timestamp: new Date().toISOString(),
+                presets: getCurrentPresetsFromDOM(),
+                formulas: readFormulasFromDOM()
+            };
+            const blob = new Blob([JSON.stringify(cfg, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'ballistics-config.json';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        }
+
+        function importConfigFromFile(file) {
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = e => {
+                try {
+                    const cfg = JSON.parse(e.target.result);
+                    applyConfig(cfg);
+                    saveConfig('imported');
+                    alert('Конфігурацію імпортовано.');
+                } catch (err) {
+                    alert('Помилка імпорту: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // autosave debounce
+        let autosaveTimeout;
+        function scheduleAutoSave() {
+            clearTimeout(autosaveTimeout);
+            autosaveTimeout = setTimeout(() => {
+                saveConfig('autosave');
+            }, 1000);
+        }
+
+        function runBallistics() {
+            const msg = document.getElementById('resultMessage');
+            const runButton = document.getElementById('runCode');
+            try {
+                runButton.disabled = true;
+                msg.textContent = 'Виконання розрахунків...';
+
+                let okAll = true;
+                formulaIds.forEach(id => {
+                    const ok = validateFormula(id);
+                    if (!ok) okAll = false;
+                });
+                if (!okAll) {
+                    msg.innerHTML = '<div class="error">Виправте синтаксичні помилки у формулах перед запуском.</div>';
+                    runButton.disabled = false;
+                    return;
+                }
+
+                const weaponsData = getWeaponsData();
+                if (weaponsData.length === 0) {
+                    document.getElementById('resultGrid').innerHTML = '';
+                    msg.innerHTML = '<div class="error">Додайте хоча б один зразок зброї!</div>';
+                    runButton.disabled = false;
+                    return;
+                }
+
+                const formulas = readFormulasFromDOM();
+                const results = [];
+                const errors = [];
+
+                weaponsData.forEach(weapon => {
+                    try {
+                        const result = calculateWeapon(weapon, formulas);
+                        results.push(result);
+                    } catch (error) {
+                        errors.push(error.message);
+                    }
+                });
+
+                if (errors.length > 0) {
+                    document.getElementById('resultGrid').innerHTML = '';
+                    msg.innerHTML = '<div class="error">Помилки при розрахунках:<br>' + errors.map(e => escHtml(e)).join('<br>') + '</div>';
+                } else {
+                    msg.textContent = '';
+                }
+
+                renderResultsGrid(results, weaponsData);
+                saveResultsForResize(results, weaponsData);
+                saveConfig('after-run');
+            } catch (error) {
+                document.getElementById('resultGrid').innerHTML = '';
+                msg.innerHTML = `<div class="error">Помилка: ${escHtml(error.message)}</div>`;
+                console.error('Детальна помилка:', error);
+            } finally {
+                runButton.disabled = false;
+            }
+        }
+
+        function saveResultsForResize(results, weaponsData) {
+            lastResults = results;
+            lastWeaponsData = weaponsData;
+        }
+
+        document.getElementById('addWeaponBtn').addEventListener('click', () => addWeapon());
+        document.getElementById('runCode').addEventListener('click', runBallistics);
+       	document.getElementById('loadConfigBtn').addEventListener('click', () => {
+       	document.getElementById('importFile').click(); 
+	});
+	document.getElementById('exportConfigBtn').addEventListener('click', () => {
+    	exportConfigAsFile();
+	});
+        document.getElementById('copyAllBtn').addEventListener('click', () => {
+            if (!lastResults || !lastResults.length) { alert('Спочатку запустіть моделювання.'); return; }
+            copyAllResultsText(lastResults);
+        });
+        document.getElementById('importFile').addEventListener('change', (e) => {
+            const f = e.target.files[0];
+	    if (f) {
+                importConfigFromFile(f);
+            }
+            e.target.value = '';
+        });
+        document.addEventListener('DOMContentLoaded', () => {
+            setupFormulaValidation();
+            const cfg = loadConfig();
+    	    if (cfg) {
+        	const bar = document.getElementById('startupNotification');
+        	if (bar) {
+            	    bar.classList.add('show');
+            	    setTimeout(() => {
+                	bar.classList.remove('show');
+            	    }, 5000);
+		}
+	    } else {
+        defaultPresets.forEach(p => addWeapon(p));
+        const bar = document.getElementById('startupNotification');
+        if (bar) bar.style.display = 'none';
+    	    }
+            const existing = document.querySelectorAll('#weaponsList .weapon-card');
+            existing.forEach(card => attachInputsListeners(card));
+            window.addEventListener('resize', () => {
+                clearTimeout(window._resizeTO);
+                window._resizeTO = setTimeout(() => {
+                    if (lastResults && lastWeaponsData) renderResultsGrid(lastResults, lastWeaponsData);
+                }, 220);
+            });
+        });
+
+        async function copyAllResultsText(results) {
+            if (!results || !results.length) return;
+            const lines = results.map(r => {
+                return `${r.label} | d=${r.d_mm.toFixed(2)} мм | m=${r.m_k_g.toFixed(1)} г | l=${r.l_mm.toFixed(0)} мм | v=${Number.isFinite(r.v_d) ? r.v_d.toFixed(0)+' м/с' : '–'}`;
+            });
+            const text = lines.join('\n');
+            try {
+                await navigator.clipboard.writeText(text);
+                alert('Усі результати скопійовано в буфер обміну.');
+            } catch (e) {
+                alert('Не вдалося скопіювати у буфер (обмеження браузера).');
+            }
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'e') {
+                e.preventDefault();
+                exportConfigAsFile();
+            }
+        });
+    </script>
+</body>
+</html>
