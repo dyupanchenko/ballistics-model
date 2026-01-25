@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Моделювання зовнішньої балістики</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 30px;
+        }
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .projectiles-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow-y: auto;
+        }
+        .projectile-card {
+            background: #f8f9fa;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #3498db;
+        }
+        .projectile-card.active {
+            border-left-color: #27ae60;
+            background: #e8f8f5;
+        }
+        .projectile-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .projectile-header input[type="text"] {
+            flex: 1;
+            margin-right: 10px;
+            padding: 5px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .param-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+        .param-row label, .param-row .select-container {
+            font-size: 13px;
+            color: #555;
+            display: block;
+        }
+        .param-row input, .param-row select {
+            width: 100%;
+            padding: 5px;
+            box-sizing: border-box;
+            margin-top: 3px;
+        }
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 13px;
+            color: #555;
+        }
+        .btn {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        .btn-primary {
+            background-color: #3498db;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #2980b9;
+        }
+        .btn-success {
+            background-color: #27ae60;
+            color: white;
+        }
+        .btn-danger {
+            background-color: #e74c3c;
+            color: white;
+        }
+        .btn-danger:hover {
+            background-color: #c0392b;
+        }
+        .btn:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        .formulas-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            /* Змінено: Видалено overflow-y: auto; для уникнення прокрутки */
+        }
+        .formula-item {
+            margin-bottom: 15px;
+        }
+        .formula-item label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #2c3e50;
+        }
+        .formula-item textarea {
+            width: 100%;
+            padding: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .controls {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .controls button {
+            padding: 12px 30px;
+            font-size: 16px;
+            margin: 0 10px;
+        }
+        .results-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        #result {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #dee2e6;
+            white-space: pre; 
+            font-family: 'Courier New', monospace; 
+            font-size: 14px;
+            /* Змінено: Видалено overflow-y: auto; та overflow-x: auto; для уникнення прокрутки */
+        }
+        #plotImage {
+            width: 100%;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        .loading {
+            color: #3498db;
+            font-style: italic;
+        }
+        .error {
+            color: #e74c3c;
+            background-color: #fadbd8;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        .add-projectile-btn {
+            width: 100%;
+            margin-top: 10px;
+        }
+        .info-note {
+            background-color: #fff3cd;
+            border-left: 5px solid #ffc107;
+            padding: 10px;
+            margin-bottom: 15px;
+            color: #856404;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Моделювання зовнішньої балістики</h1>
+        
+        <div class="main-grid">
+            <div class="projectiles-section">
+                <h2>Зразки боєприпасів</h2>
+                <div id="projectilesList"></div>
+                <button class="btn btn-success add-projectile-btn" onclick="addProjectile()">+ Додати зразок</button>
+            </div>
+            
+            <div class="formulas-section">
+                <h2>Налаштування формул та атмосфери</h2>
+                
+                <div class="formula-item">
+                    <label>T_kelvin (температура, К):</label>
+                    <textarea id="formula_T_kelvin" rows="1">T_kelvin = 288.15</textarea> 
+                </div>
+                <div class="formula-item">
+                    <label>P0_pascal (тиск на рівні h=0, Па):</label>
+                    <textarea id="formula_P0_pascal" rows="1">P0_pascal = 101325</textarea> 
+                </div>
+
+                <div class="formula-item">
+                    <label>dt (крок часу):</label>
+                    <textarea id="formula_dt" rows="1">dt = 0.01</textarea>
+                </div>
+                <div class="formula-item">
+                    <label>g (гравітація):</label>
+                    <textarea id="formula_g" rows="1">g = 9.81</textarea>
+                </div>
+                <div class="formula-item">
+                    <label>vx_init (початкова vx):</label>
+                    <textarea id="formula_vx_init" rows="1">vx = v0*np.cos(theta)</textarea>
+                </div>
+                <div class="formula-item">
+                    <label>vy_init (початкова vy):</label>
+                    <textarea id="formula_vy_init" rows="1">vy = v0*np.sin(theta)</textarea>
+                </div>
+                <div class="formula-item">
+                    <label>v (швидкість):</label>
+                    <textarea id="formula_v" rows="1">v = np.sqrt(vx**2+vy**2)</textarea>
+                </div>
+                <div class="formula-item">
+                    <label>ax (розраховується динамічно):</label>
+                    <textarea id="formula_ax" rows="1">ax = -k*v*vx</textarea>
+                </div>
+                <div class="formula-item">
+                    <label>ay (розраховується динамічно):</label>
+                    <textarea id="formula_ay" rows="1">ay = -g-k*v*vy+(0.5*rho*v**2*CL*S/m if is_gliding else 0)</textarea>
+                </div>
+                <div class="formula-item">
+                    <label>update_vx (оновлення vx):</label>
+                    <textarea id="formula_update_vx" rows="1">vx += ax*dt</textarea>
+                </div>
+                <div class="formula-item">
+                    <label>update_vy (оновлення vy):</label>
+                    <textarea id="formula_update_vy" rows="1">vy += ay*dt</textarea>
+                </div>
+                <div class="formula-item">
+                    <label>update_x (оновлення x):</label>
+                    <textarea id="formula_update_x" rows="1">x += vx*dt</textarea>
+                </div>
+                <div class="formula-item">
+                    <label>update_y (оновлення y):</label>
+                    <textarea id="formula_update_y" rows="1">y += vy*dt</textarea>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="btn btn-primary" id="runCode" style="font-size: 18px;">🚀 Запустити моделювання</button>
+        </div>
+
+        <div class="results-section">
+            <h2>Результати</h2>
+            <pre id="result">Натисніть "Запустити моделювання" для отримання результатів</pre>
+            <img id="plotImage" alt="Графік траєкторії" style="display: none;">
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+    <script>
+        let pyodideInstance = null;
+        let projectileIdCounter = 0;
+        let projectiles = [];
+
+        // ОНОВЛЕНІ ПРЕСЕТИ ДЛЯ M549
+        const presets = [
+            { label: "M549 - Відмова двигуна", v0: 826, theta: 45, m: 43.6, d: 0.155, drag_model: 'G7', form_factor: 0.74, CL: 0, S: 0, is_gliding: false, is_reactive: false, jet_delay: 0, jet_burn_time: 0, jet_fuel_mass: 0, jet_exhaust_velocity: 0 },
+            { label: "M549 - Включений двигун (відразу)", v0: 826, theta: 45, m: 43.6, d: 0.155, drag_model: 'G7', form_factor: 0.74, CL: 0, S: 0, is_gliding: false, is_reactive: true, jet_delay: 0, jet_burn_time: 3.0, jet_fuel_mass: 3.0, jet_exhaust_velocity: 2400 },
+            { label: "M549 - Включений двигун (з затримкою)", v0: 826, theta: 57, m: 43.6, d: 0.155, drag_model: 'G7', form_factor: 0.74, CL: 0, S: 0, is_gliding: false, is_reactive: true, jet_delay: 18.0, jet_burn_time: 3.0, jet_fuel_mass: 3.0, jet_exhaust_velocity: 2400 }
+        ];
+
+        function createProjectileCard(preset, id) {
+            const glidingChecked = preset.is_gliding ? 'checked' : '';
+            const reactiveChecked = preset.is_reactive ? 'checked' : '';
+            return `
+                <div class="projectile-card active" id="projectile-${id}">
+                    <div class="projectile-header">
+                        <input type="text" class="projectile-label" value="${preset.label}" placeholder="Назва зразка">
+                        <button class="btn btn-danger" onclick="removeProjectile(${id})">×</button>
+                    </div>
+                    <div class="param-row">
+                        <label>Початкова швидкість (м/с): <input type="number" class="projectile-v0" value="${preset.v0}" step="1"></label>
+                        <label>Кут нахилу (град): <input type="number" class="projectile-theta" value="${preset.theta}" step="1"></label>
+                    </div>
+                    <div class="param-row">
+                        <label>Маса M0 (кг): <input type="number" class="projectile-m" value="${preset.m}" step="0.1"></label>
+                        <label>Калібр d (м): <input type="number" class="projectile-d" value="${preset.d || 0.155}" step="0.001"></label>
+                    </div>
+                    <div class="param-row">
+                        <div class="select-container">
+                            Модель опору:
+                            <select class="projectile-drag_model">
+                                <option value="G1" ${preset.drag_model === 'G1' ? 'selected' : ''}>G1 (Кулі з пласким дном)</option>
+                                <option value="G7" ${preset.drag_model === 'G7' ? 'selected' : ''}>G7 (VLD/Артилерія)</option>
+                            </select>
+                        </div>
+                        <label>Форм-фактор (i): <input type="number" class="projectile-form_factor" value="${preset.form_factor || 1.0}" step="0.01"></label>
+                    </div>
+                    <div class="param-row">
+                        <label>Коеф. підйому CL: <input type="number" class="projectile-CL" value="${preset.CL}" step="0.1"></label>
+                        <label>Площа крил S (м²): <input type="number" class="projectile-S" value="${preset.S}" step="0.01"></label>
+                    </div>
+                    <div class="param-row">
+                        <label>Час роботи двигуна (с): <input type="number" class="projectile-jet_burn_time" value="${preset.jet_burn_time}" step="0.1"></label>
+                        <label>Затримка двигуна (с): <input type="number" class="projectile-jet_delay" value="${preset.jet_delay}" step="0.1"></label>
+                    </div>
+                    <div class="param-row">
+                        <label>Швидкість витоку (м/с): <input type="number" class="projectile-jet_exhaust_velocity" value="${preset.jet_exhaust_velocity}" step="100"></label>
+                        <label>Маса палива (кг): <input type="number" class="projectile-jet_fuel_mass" value="${preset.jet_fuel_mass}" step="0.1"></label>
+                    </div>
+
+                    <hr style="margin: 10px 0; border-top: 1px solid #ddd;">
+
+                    <div class="param-row">
+                        <label class="checkbox-label">Плануючий: <input type="checkbox" class="projectile-is_gliding" ${glidingChecked}></label>
+                        <label class="checkbox-label">Активно-реактивний: <input type="checkbox" class="projectile-is_reactive" ${reactiveChecked}></label>
+                        <div style="visibility: hidden;"></div> </div>
+                </div>
+            `;
+        }
+
+        function addProjectile(preset = null) {
+            const id = projectileIdCounter++;
+            const defaultPreset = { label: `Зразок ${id + 1}`, v0: 400, theta: 45, m: 10, d: 0.1, drag_model: 'G1', form_factor: 1.0, CL: 0, S: 0, is_gliding: false, is_reactive: false, jet_delay: 0, jet_burn_time: 0, jet_fuel_mass: 0, jet_exhaust_velocity: 0 };
+            const projectilePreset = { ...defaultPreset, ...(preset || {}) };
+            
+            if (!projectilePreset.theta) {
+                 projectilePreset.theta = 45; 
+            }
+
+            const projectilesList = document.getElementById('projectilesList');
+            projectilesList.insertAdjacentHTML('beforeend', createProjectileCard(projectilePreset, id));
+            projectiles.push(id);
+        }
+
+        function removeProjectile(id) {
+            const card = document.getElementById(`projectile-${id}`);
+            if (card) {
+                card.remove();
+                projectiles = projectiles.filter(p => p !== id);
+            }
+        }
+
+        function getProjectilesData() {
+            const projectilesData = [];
+            
+            for (const id of projectiles) {
+                const card = document.getElementById(`projectile-${id}`);
+                if (!card) continue;
+                
+                const data = {
+                    label: card.querySelector('.projectile-label').value,
+                    v0: parseFloat(card.querySelector('.projectile-v0').value),
+                    theta: parseFloat(card.querySelector('.projectile-theta').value) * Math.PI / 180,  // в радіани
+                    m: parseFloat(card.querySelector('.projectile-m').value), // Initial mass (M0)
+                    d: parseFloat(card.querySelector('.projectile-d').value),
+                    
+                    // НОВІ ПОЛЯ
+                    drag_model: card.querySelector('.projectile-drag_model').value, 
+                    form_factor: parseFloat(card.querySelector('.projectile-form_factor').value) || 1.0,
+
+                    CL: parseFloat(card.querySelector('.projectile-CL').value),
+                    S: parseFloat(card.querySelector('.projectile-S').value),
+                    is_gliding: card.querySelector('.projectile-is_gliding').checked,
+                    // Поля для реактивного двигуна
+                    is_reactive: card.querySelector('.projectile-is_reactive').checked,
+                    jet_delay: parseFloat(card.querySelector('.projectile-jet_delay').value),
+                    jet_burn_time: parseFloat(card.querySelector('.projectile-jet_burn_time').value),
+                    jet_fuel_mass: parseFloat(card.querySelector('.projectile-jet_fuel_mass').value),
+                    jet_exhaust_velocity: parseFloat(card.querySelector('.projectile-jet_exhaust_velocity').value)
+                };
+                projectilesData.push(data);
+            }
+            
+            return projectilesData;
+        }
+
+        async function initPyodide() {
+            if (!pyodideInstance) {
+                document.getElementById('result').innerHTML = '<span class="loading">Завантаження Pyodide...</span>';
+                pyodideInstance = await loadPyodide();
+                await pyodideInstance.loadPackage(["numpy", "matplotlib"]);
+                document.getElementById('result').textContent = 'Готово до роботи!';
+            }
+            return pyodideInstance;
+        }
+
+       async function runBallistics() {
+            const resultDiv = document.getElementById('result');
+            const runButton = document.getElementById('runCode');
+            
+            try {
+                runButton.disabled = true;
+                resultDiv.innerHTML = '<span class="loading">Виконання розрахунків...</span>';
+                
+                const pyodide = await initPyodide();
+                const projectilesData = getProjectilesData();
+                
+                if (projectilesData.length === 0) {
+                    resultDiv.innerHTML = '<div class="error">Додайте хоча б один зразок боєприпасу!</div>';
+                    return;
+                }
+
+                // Отримання формул + нові атмосферні параметри
+                const formulas = {};
+                ['dt', 'g', 'vx_init', 'vy_init', 'v', 'ax', 'ay', 'update_vx', 'update_vy', 'update_x', 'update_y', 'T_kelvin', 'P0_pascal'].forEach(key => {
+                    const element = document.getElementById(`formula_${key}`);
+                    formulas[key] = element ? element.value : '';
+                });
+
+
+                // Конвертація даних для Python
+                pyodide.globals.set('projectiles_data_js', projectilesData);
+                pyodide.globals.set('formulas_js', formulas);
+
+                // ПОВНІСТЮ ВИПРАВЛЕНИЙ Python-код
+const pythonCode = `
+import numpy as np
+import matplotlib.pyplot as plt
+import io
+import base64
+import js
+
+# Конвертація JS об'єктів у Python
+projectiles_data = projectiles_data_js.to_py()
+formulas = formulas_js.to_py()
+
+# --- ГЛОБАЛЬНІ КОНСТАНТИ АТМОСФЕРИ ---
+T_kelvin = 293.15 
+P0_pascal = 101325
+GAMMA = 1.4 # adiabatic index for air
+
+try:
+    exec(formulas['T_kelvin'], {}, globals())
+    exec(formulas['P0_pascal'], {}, globals())
+except Exception:
+    pass
+
+M_molar = 0.029 # кг/моль - молярна маса повітря
+R_gas = 8.31 # Дж/(моль К) - універсальна газова стала
+
+# Швидкість звуку (c) - залежить лише від постійної T_kelvin
+c = np.sqrt(GAMMA * R_gas * T_kelvin / M_molar)
+
+
+# --- ТАБЛИЧНІ ДАНІ ДЛЯ СТАНДАРТНИХ КРИВИХ ОПОРУ (Cd vs. Mach) ---
+
+# G1 (Куля з пласким дном, Tangent Ogive)
+G1_Ma = np.array([0.00, 0.40, 0.60, 0.80, 0.85, 0.90, 0.95, 1.00, 1.05, 1.10, 1.20, 1.40, 1.60, 1.80, 2.00, 2.40, 2.80, 3.20, 3.60, 4.00, 5.00])
+G1_Cd = np.array([0.31, 0.30, 0.28, 0.32, 0.37, 0.45, 0.60, 0.77, 0.80, 0.81, 0.77, 0.69, 0.63, 0.59, 0.57, 0.52, 0.49, 0.47, 0.45, 0.44, 0.42])
+
+# G7 (Куля VLD Boat-tail, High BC)
+G7_Ma = np.array([0.00, 0.40, 0.60, 0.80, 0.90, 0.95, 1.00, 1.05, 1.10, 1.20, 1.40, 1.60, 1.80, 2.00, 2.40, 2.80, 3.20, 3.60, 4.00, 5.00])
+G7_Cd = np.array([0.16, 0.16, 0.16, 0.18, 0.21, 0.25, 0.32, 0.40, 0.45, 0.47, 0.45, 0.43, 0.41, 0.40, 0.38, 0.36, 0.35, 0.34, 0.33, 0.31])
+
+# --- ФУНКЦІЯ ВИЗНАЧЕННЯ КОЕФІЦІЄНТА ОПОРУ ЗА МОДЕЛЛЮ ---
+# Cd_actual = i * Cd_reference
+def get_Cd_by_model(Ma, model_type, form_factor):
+    
+    if model_type == 'G1':
+        Ma_ref, Cd_ref = G1_Ma, G1_Cd
+    elif model_type == 'G7':
+        Ma_ref, Cd_ref = G7_Ma, G7_Cd
+    elif model_type == 'M549':
+        # Приклад, якщо б була окрема крива для M549, інакше використовуємо G7
+        return get_Cd_M549(Ma) * form_factor
+    else:
+        # Повертаємо константу, якщо модель невідома (або 0.5 як типове значення)
+        return 0.5 * form_factor 
+
+    # Використовуємо лінійну інтерполяцію для отримання Cd_ref при поточному Ma
+    Cd_reference = np.interp(Ma, Ma_ref, Cd_ref, left=Cd_ref[0], right=Cd_ref[-1])
+    
+    # Застосовуємо форм-фактор (i) для отримання фактичного Cd
+    return Cd_reference * form_factor
+
+
+# --- ФУНКЦІЯ РОЗРАХУНКУ ТРАЄКТОРІЇ ---
+def calculate_trajectory(projectile_data, formulas, T_kelvin, P0_pascal, M_molar, R_gas, c):
+    v0 = projectile_data['v0']
+    theta = projectile_data['theta']
+    m = projectile_data['m'] 
+    d = projectile_data['d']
+    
+    # НОВІ ПАРАМЕТРИ
+    drag_model = projectile_data['drag_model']
+    form_factor = projectile_data['form_factor']
+    
+    CL = projectile_data['CL']
+    S = projectile_data['S']
+    is_gliding = projectile_data['is_gliding']
+    label = projectile_data['label']
+    
+    is_reactive = projectile_data['is_reactive']
+    jet_delay = projectile_data['jet_delay']
+    jet_burn_time = projectile_data['jet_burn_time']
+    jet_fuel_mass = projectile_data['jet_fuel_mass']
+    jet_exhaust_velocity = projectile_data['jet_exhaust_velocity']
+
+    M_initial = m
+    M_dot = jet_fuel_mass / jet_burn_time if is_reactive and jet_burn_time > 1e-9 else 0.0
+    
+    # --- ІНІЦІАЛІЗАЦІЯ ---
+    current_mass = M_initial 
+    
+    local_vars = {
+        'v0': v0, 'theta': theta, 'm': m, 'CL': CL, 'S': S, 'is_gliding': is_gliding,
+        'x': 0.0, 'y': 0.0, 't_total': 0.0,
+        'np': np
+    }
+    
+    try:
+        # Ініціалізація змінних
+        exec(formulas['dt'], {}, local_vars)
+        exec(formulas['g'], {}, local_vars)
+        exec(formulas['vx_init'], {}, local_vars)
+        exec(formulas['vy_init'], {}, local_vars)
+        
+        dt = local_vars['dt']
+        g = local_vars['g'] 
+        
+        trajectory = [[local_vars['x'], local_vars['y']]]
+        times = [0.0]
+        velocities = [] 
+        
+        exec(formulas['v'], {}, local_vars)
+        velocities.append(local_vars['v'])
+
+        MAX_TIME = 1500.0 
+        is_halted = False
+
+        while local_vars['y'] >= 0:
+            
+            if local_vars['t_total'] > MAX_TIME:
+                is_halted = True
+                break
+            
+            # --- ЛОГІКА РЕАКТИВНОГО ДВИГУНА / ЗМІННОЇ МАСИ ---
+            thrust_ax = 0.0
+            thrust_ay = 0.0
+            
+            if is_reactive and M_dot > 0:
+                t_curr = local_vars['t_total']
+                
+                if t_curr >= jet_delay and t_curr < jet_delay + jet_burn_time:
+                    t_burn = t_curr - jet_delay
+                    mass_consumed = M_dot * t_burn
+                    current_mass = M_initial - mass_consumed
+                    
+                    thrust_force = M_dot * jet_exhaust_velocity
+                    a_thrust = thrust_force / current_mass
+                    
+                    if local_vars['v'] > 1e-9:
+                        thrust_ax = a_thrust * (local_vars['vx'] / local_vars['v'])
+                        thrust_ay = a_thrust * (local_vars['vy'] / local_vars['v'])
+                
+                elif t_curr >= jet_delay + jet_burn_time:
+                    current_mass = M_initial - jet_fuel_mass
+
+            local_vars['m'] = current_mass 
+
+            # --- ДИНАМІЧНА ГУСТИНА ТА КОЕФІЦІЄНТ ОПОРУ (Cd(Ma)) ---
+            h = local_vars['y']
+            
+            exponent = - (M_molar * g * h) / (R_gas * T_kelvin)
+            rho_h = (P0_pascal * M_molar) / (R_gas * T_kelvin) * np.exp(exponent)
+            
+            v_curr = local_vars['v']
+            Ma = v_curr / c          
+            
+            Cd_current = get_Cd_by_model(Ma, drag_model, form_factor) 
+            
+            k_dynamic = (np.pi / 8.0) * Cd_current * rho_h * (d**2) / current_mass
+
+            # --- ОБЧИСЛЕННЯ ПРИСКОРЕНЬ ---
+            exec(formulas['v'], {}, local_vars)
+            v = local_vars['v']
+            
+            drag_ax = -k_dynamic * v * local_vars['vx']
+            drag_ay = -k_dynamic * v * local_vars['vy']
+            
+            lift_ay = 0.0
+            if local_vars['is_gliding']:
+                lift_ay = 0.5 * rho_h * (v**2) * local_vars['CL'] * local_vars['S'] / local_vars['m']
+            
+            local_vars['ax'] = drag_ax + thrust_ax
+            local_vars['ay'] = -g + drag_ay + lift_ay + thrust_ay
+
+            # --- ОНОВЛЕННЯ ШВИДКОСТЕЙ ТА КООРДИНАТ ---
+            exec(formulas['update_vx'], {}, local_vars)
+            exec(formulas['update_vy'], {}, local_vars)
+            
+            exec(formulas['v'], {}, local_vars)
+            
+            exec(formulas['update_x'], {}, local_vars)
+            exec(formulas['update_y'], {}, local_vars)
+            
+            local_vars['t_total'] += dt
+            
+            trajectory.append([local_vars['x'], local_vars['y']])
+            times.append(local_vars['t_total'])
+            velocities.append(local_vars['v']) 
+        
+        # --- ФІНАЛІЗАЦІЯ ---
+        trajectory = np.array(trajectory)
+        times = np.array(times)
+        
+        # ... (логіка обрізання та інтерполяції для точних результатів без змін) ...
+        landed_idx = np.where(trajectory[:, 1] < 0)[0]
+        
+        if len(landed_idx) > 0:
+            last_positive_y_index = landed_idx[0] - 1
+            trajectory_plot = trajectory[:last_positive_y_index + 1, :]
+            times_plot = times[:last_positive_y_index + 1]
+            velocities_plot = velocities[:last_positive_y_index + 1]
+        else:
+            trajectory_plot = trajectory
+            times_plot = times
+            velocities_plot = velocities
+
+        if trajectory.shape[0] > 1:
+            x_last = trajectory[-2, 0]
+            y_last = trajectory[-2, 1]
+            x_next = trajectory[-1, 0]
+            y_next = trajectory[-1, 1]
+
+            if y_last >= 0 and y_next < 0:
+                dx = x_next - x_last
+                dy = y_next - y_last
+                
+                if dy != 0:
+                    t_impact_factor = -y_last / dy
+                    range_dist = x_last + t_impact_factor * dx
+                    flight_time = times[-2] + t_impact_factor * dt
+                else:
+                    range_dist = x_last
+                    flight_time = times[-2]
+            else:
+                range_dist = trajectory[-1, 0]
+                flight_time = times[-1]
+        else:
+            range_dist = 0.0
+            flight_time = 0.0
+
+        max_height = np.max(trajectory_plot[:,1]) 
+        
+        result = {
+            'label': label,
+            'trajectory': trajectory_plot, 
+            'times': times_plot, 
+            'velocities': velocities_plot, 
+            'max_height': max_height,
+            'range_dist': range_dist, 
+            'flight_time': flight_time, 
+            'is_gliding': is_gliding
+        }
+        return result, None
+    except Exception as e:
+        return None, str(e)
+
+# Розрахунок для всіх зразків
+results = []
+errors = []
+
+for projectile in projectiles_data:
+    result, error = calculate_trajectory(projectile, formulas, T_kelvin, P0_pascal, M_molar, R_gas, c)
+    if result:
+        results.append(result)
+    else:
+        errors.append(f"{projectile['label']}: {error}")
+
+# --- ФОРМУВАННЯ КОМПАКТНОГО ТЕКСТОВОГО ВИВОДУ У ДВА СТОВПЦІ ---
+output_lines = []
+output_lines.append("=" * 70)
+output_lines.append("ПОРІВНЯННЯ ЗОВНІШНЬОЇ БАЛІСТИКИ")
+output_lines.append("=" * 70)
+output_lines.append("")
+
+# Шаблон рядка: '   [Опис] : [Значення] ' + '   [Опис] : [Значення] '
+# Вирівнюємо за допомогою пробілів (фіксована ширина шрифту в <pre> це забезпечить)
+
+# Функція для форматування одного блоку результатів
+def format_result_block(r, p_data):
+    is_reactive_type = p_data['is_reactive']
+    projectile_type_str = 'Активно-реактивний' if is_reactive_type else ('Плануючий' if r.get('is_gliding') else 'Балістичний')
+    
+    # 1. Заголовок (без типу)
+    header = f"📌 {r['label']}"
+    # 2. Тип (окремий рядок, запит користувача, без ** та перенос на новий рядок)
+    type_line = f"  ({projectile_type_str})"
+    
+    lines = [
+        # ВИПРАВЛЕНО: Прибрано ** навколо значення
+        ("Модель", f"{p_data['drag_model']}, i={p_data['form_factor']:.2f}"),
+        ("Дальність польоту", f"{r['range_dist']/1000:.2f} км"), 
+        ("Максимальна висота", f"{r['max_height']:.2f} м"),
+        ("Час польоту", f"{r['flight_time']:.2f} с")
+    ]
+    # ТЕПЕР ПОВЕРТАЄМО 3 ЕЛЕМЕНТИ (header, type_line, lines)
+    return header, type_line, lines 
+
+# Збираємо дані для всіх результатів
+formatted_results = []
+for r in results:
+    p_data = projectiles_data[results.index(r)]
+    formatted_results.append(format_result_block(r, p_data))
+
+# Кількість стовпців
+NUM_COLS = 2
+PAD_WIDTH = 35 # Ширина стовпця для даних (підібрано експериментально)
+
+# Формуємо сітку
+for i in range(0, len(results), NUM_COLS):
+    
+    # 1. Заголовки (перший рядок блоку)
+    header_line = ""
+    for j in range(NUM_COLS):
+        idx = i + j
+        if idx < len(formatted_results):
+            # Індекс [0] - заголовок
+            header_line += formatted_results[idx][0].ljust(PAD_WIDTH * 2) 
+    output_lines.append(header_line)
+    
+    # 2. Тип боєприпасу (НОВИЙ РЯДОК - ВИПРАВЛЕННЯ ПОМИЛКИ)
+    type_line = ""
+    for j in range(NUM_COLS):
+        idx = i + j
+        if idx < len(formatted_results):
+            # Індекс [1] - рядок типу (string)
+            type_line += formatted_results[idx][1].ljust(PAD_WIDTH * 2) 
+    output_lines.append(type_line)
+    
+    # 3. Деталі (4 рядки)
+    for k in range(4): # 4 рядки з параметрами
+        detail_line = ""
+        for j in range(NUM_COLS):
+            idx = i + j
+            if idx < len(formatted_results):
+                # Індекс [2] - список деталей (list of tuples)
+                label, value = formatted_results[idx][2][k]
+                # Форматуємо рядок як "  [Label]: [Value]" (Без **)
+                entry = f"  {label}: {value}"
+                detail_line += entry.ljust(PAD_WIDTH * 2) 
+        output_lines.append(detail_line)
+
+    # 4. Порожній рядок-роздільник
+    output_lines.append("")
+
+
+if errors:
+    output_lines.append("ПОМИЛКИ:")
+    for err in errors:
+        output_lines.append(f"  ❌ {err}")
+
+output_text = "\\n".join(output_lines)
+
+
+# --- Побудова порівняльних графіків ---
+colors = ['#3498db', '#e74c3c', '#27ae60', '#f39c12', '#9b59b6', '#1abc9c']
+
+fig, axs = plt.subplots(1, 2, figsize=(14, 6))
+
+# --- 1️⃣ Траєкторія y(x) ---
+for idx, r in enumerate(results):
+    axs[0].plot(r['trajectory'][:,0]/1000, r['trajectory'][:,1], label=r['label'], linewidth=2.5, color=colors[idx % len(colors)]) 
+
+axs[0].set_xlabel('Дальність (км)', fontsize=12, fontweight='bold')
+axs[0].set_ylabel('Висота (м)', fontsize=12, fontweight='bold')
+axs[0].set_title('Траєкторія польоту', fontsize=13, fontweight='bold')
+axs[0].grid(True, alpha=0.3, linestyle='--')
+axs[0].legend(fontsize=10, loc='upper right')
+
+# --- 2️⃣ Швидкість від часу ---
+for idx, r in enumerate(results):
+    axs[1].plot(r['times'], r['velocities'], label=r['label'], linewidth=2.5, color=colors[idx % len(colors)])
+
+axs[1].set_xlabel('Час (с)', fontsize=12, fontweight='bold')
+axs[1].set_ylabel('Швидкість (м/с)', fontsize=12, fontweight='bold')
+axs[1].set_title('Зміна швидкості під час польоту', fontsize=13, fontweight='bold')
+axs[1].grid(True, alpha=0.3, linestyle='--')
+axs[1].legend(fontsize=10, loc='upper right')
+
+plt.tight_layout()
+
+buf = io.BytesIO()
+plt.savefig(buf, format='png', dpi=120, bbox_inches='tight')
+plt.close()
+buf.seek(0)
+base64_image = base64.b64encode(buf.read()).decode('ascii')
+
+# Повертаємо результати
+output_text, base64_image
+`;
+
+                const result = await pyodide.runPythonAsync(pythonCode);
+                const [output_text, base64_image] = result.toJs();
+
+                resultDiv.textContent = output_text; /* ВИПРАВЛЕНО: Повернуто textContent для відображення компактної сітки */
+
+                const plotImg = document.getElementById('plotImage');
+                if (base64_image) {
+                    plotImg.src = "data:image/png;base64," + base64_image;
+                    plotImg.style.display = 'block';
+                } else {
+                    plotImg.style.display = 'none';
+                }
+
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">Помилка: ${error.message}<br><br>Деталі:<br>${error.stack || ''}</div>`;
+                console.error('Детальна помилка:', error);
+            } finally {
+                runButton.disabled = false;
+            }
+        }
+
+        document.getElementById('runCode').addEventListener('click', runBallistics);
+        
+        // Ініціалізація з попередньо заповненими зразками
+        window.addEventListener('load', () => {
+            presets.forEach(preset => addProjectile(preset));
+            initPyodide();
+        });
+    </script>
+</body>
+</html>
